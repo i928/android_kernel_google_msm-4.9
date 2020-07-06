@@ -194,6 +194,7 @@ enum bpf_attach_type {
 	BPF_CGROUP_GETSOCKOPT,
 	BPF_CGROUP_SETSOCKOPT,
 	BPF_TRACE_RAW_TP = 23,
+	BPF_CGROUP_INET_SOCK_RELEASE = 34,	/* upstream value; 24-33 not backported */
 	__MAX_BPF_ATTACH_TYPE
 };
 
