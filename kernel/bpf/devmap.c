@@ -158,7 +158,7 @@ static struct bpf_map *dev_map_alloc(union bpf_attr *attr)
 	if (!dtab->flush_needed)
 		goto free_dtab;
 
-	dtab->netdev_map = bpf_map_area_alloc(dtab->map.max_entries *
+	dtab->netdev_map = bpf_map_area_alloc((u64) dtab->map.max_entries *
 					      sizeof(struct bpf_dtab_netdev *),
 					      dtab->map.numa_node);
 	if (!dtab->netdev_map)
