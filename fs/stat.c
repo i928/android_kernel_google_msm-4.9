@@ -14,9 +14,26 @@
 #include <linux/security.h>
 #include <linux/syscalls.h>
 #include <linux/pagemap.h>
+#ifdef CONFIG_KSU_SUSFS
+#include <linux/susfs_def.h>
+#include <linux/version.h>
+#endif
 
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
+
+/**
+ * generic_fillattr - Fill in the basic attributes from the inode struct
+ * @inode: Inode to use as the source
+ * @stat: Where to fill in the attributes
+ *
+ * Fill in the basic attributes in the kstat structure from data that's to be
+ * found on the VFS inode structure.  This is the default if no getattr inode
+ * operation is supplied.
+ */
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+extern void susfs_generic_fillattr_spoofer(struct inode *inode, struct kstat *stat);
+#endif
 
 void generic_fillattr(struct inode *inode, struct kstat *stat)
 {
@@ -33,6 +50,9 @@ void generic_fillattr(struct inode *inode, struct kstat *stat)
 	stat->ctime = inode->i_ctime;
 	stat->blksize = i_blocksize(inode);
 	stat->blocks = inode->i_blocks;
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	susfs_generic_fillattr_spoofer(inode, stat);
+#endif
 }
 
 EXPORT_SYMBOL(generic_fillattr);
@@ -54,7 +74,17 @@ int vfs_getattr_nosec(struct path *path, struct kstat *stat)
 	struct inode *inode = d_backing_inode(path->dentry);
 
 	if (inode->i_op->getattr)
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	{
+		int err = inode->i_op->getattr(path->mnt, path->dentry, stat);
+
+		if (!err)
+			susfs_generic_fillattr_spoofer(inode, stat);
+		return err;
+	}
+#else
 		return inode->i_op->getattr(path->mnt, path->dentry, stat);
+#endif
 
 	generic_fillattr(inode, stat);
 	return 0;
@@ -287,12 +317,22 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
 	return cp_new_stat(&stat, statbuf);
 }
 
+#if defined(CONFIG_KSU)
+__attribute__((hot)) 
+extern int ksu_handle_stat(int *dfd, const char __user **filename_user,
+				int *flags);
+#endif
+
 #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
 SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
 		struct stat __user *, statbuf, int, flag)
 {
 	struct kstat stat;
 	int error;
+
+#if defined(CONFIG_KSU)
+	ksu_handle_stat(&dfd, &filename, &flag);
+#endif
 
 	error = vfs_fstatat(dfd, filename, &stat, flag);
 	if (error)
@@ -436,6 +476,9 @@ SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,
 	struct kstat stat;
 	int error;
 
+#if defined(CONFIG_KSU)
+	ksu_handle_stat(&dfd, &filename, &flag); 
+#endif
 	error = vfs_fstatat(dfd, filename, &stat, flag);
 	if (error)
 		return error;
