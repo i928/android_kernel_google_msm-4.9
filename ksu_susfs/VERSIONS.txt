@@ -1,0 +1,5 @@
+KernelSU-Next : i928/KSU-Next  branch next-susfs_v1.5.5-v1.5.7  commit a08c7bd
+                KSU_VERSION pinned to 12798 (= 10000 + 2598 commits + 200)
+susfs4ksu     : gitlab.com/simonpunk/susfs4ksu  branch kernel-4.9  commit 41ba0b5
+                SUSFS_VERSION v1.5.5, VARIANT NON-GKI
+kernel        : kernel/google/msm-4.9  (4.9.337, non-GKI)  cred.usage = atomic_t
