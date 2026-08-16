@@ -124,6 +124,7 @@ int ksu_inode_permission(struct inode *inode, int mask)
 #endif
 {
 	if (unlikely(inode && inode->i_sb && inode->i_sb->s_magic == DEVPTS_SUPER_MAGIC)) {
+		// __ksu_handle_devpts(inode);
 		//__ksu_handle_devpts(inode);
 	}
 	return 0;
