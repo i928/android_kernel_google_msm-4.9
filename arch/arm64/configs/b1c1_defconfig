@@ -692,9 +692,9 @@ CONFIG_KSU_SUSFS_SUS_KSTAT=y
 CONFIG_KSU_SUSFS_TRY_UMOUNT=y
 CONFIG_KSU_SUSFS_SPOOF_UNAME=y
 CONFIG_KSU_SUSFS_ENABLE_LOG=y
+# seq_put_hex_ll / seq_put_decimal_ull_width are backported in this tree now,
+# and the /proc call sites are wired, so both of these can be enabled.
+CONFIG_KSU_SUSFS_OPEN_REDIRECT=y
+CONFIG_KSU_SUSFS_SUS_MAP=y
 CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y
 CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y
-# SUS_MAP and OPEN_REDIRECT need seq_put_hex_ll / seq_put_decimal_ull_width,
-# part of an unrelated /proc mm backport in Andrey's tree that is not ported here.
-# CONFIG_KSU_SUSFS_SUS_MAP is not set
-# CONFIG_KSU_SUSFS_OPEN_REDIRECT is not set

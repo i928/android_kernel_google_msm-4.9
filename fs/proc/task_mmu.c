@@ -16,6 +16,20 @@
 #include <linux/page_idle.h>
 #include <linux/shmem_fs.h>
 #include <linux/mm_inline.h>
+#if defined(CONFIG_KSU_SUSFS_SUS_KSTAT) || defined(CONFIG_KSU_SUSFS_SUS_MAP) || \
+	defined(CONFIG_KSU_SUSFS_OPEN_REDIRECT)
+#include <linux/susfs_def.h>
+#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+extern void susfs_show_map_vma_spoofer(struct inode *inode, dev_t *out_dev,
+				       unsigned long *out_ino);
+#endif
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+extern int susfs_open_redirect_spoof_show_map_vma(struct inode *inode,
+						  unsigned long *out_ino,
+						  dev_t *out_dev,
+						  char **spoofed_name);
+#endif
 
 #include <asm/elf.h>
 #include <asm/uaccess.h>
@@ -358,14 +372,37 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
 	unsigned long start, end;
 	dev_t dev = 0;
 	const char *name = NULL;
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+	char *spoofed_redirected_name = NULL;
+#endif
 
 	if (file) {
 		struct inode *inode = file_inode(vma->vm_file);
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+		if (SUSFS_IS_INODE_OPEN_REDIRECT(inode)) {
+			if (!susfs_open_redirect_spoof_show_map_vma(inode, &ino,
+					&dev, &spoofed_redirected_name)) {
+				pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
+				goto susfs_orig_flow;
+			}
+		}
+#endif
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+		/* Hide the mapping entirely: emit no line for this vma. */
+		if (SUSFS_IS_INODE_SUS_MAP(inode))
+			return;
+#endif
 		dev = inode->i_sb->s_dev;
 		ino = inode->i_ino;
 		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+		susfs_show_map_vma_spoofer(inode, &dev, &ino);
+#endif
 	}
 
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+susfs_orig_flow:
+#endif
 	/* We don't show the stack guard page in /proc/maps */
 	start = vma->vm_start;
 	end = vma->vm_end;
@@ -375,6 +412,15 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
 	 * Print the dentry name for named mappings, and a
 	 * special [heap] marker for the heap:
 	 */
+#ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
+	if (spoofed_redirected_name) {
+		seq_pad(m, ' ');
+		seq_puts(m, spoofed_redirected_name);
+		seq_putc(m, '\n');
+		kfree(spoofed_redirected_name);
+		return;
+	}
+#endif
 	if (file) {
 		seq_pad(m, ' ');
 		seq_file_path(m, file, "\n");
@@ -821,6 +867,20 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
 		mss = &mss_stack;
 	}
 
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+	/*
+	 * A sus_map vma is hidden from /proc/pid/smaps completely.  In rollup
+	 * mode we must not return early: this vma may be the last one, and the
+	 * [rollup] summary is emitted from that iteration.  Skip the accounting
+	 * instead so the vma contributes nothing to the totals.
+	 */
+	if (vma->vm_file && SUSFS_IS_INODE_SUS_MAP(file_inode(vma->vm_file))) {
+		if (!rollup_mode)
+			return 0;
+		goto susfs_skip_walk;
+	}
+#endif
+
 	smaps_walk.private = mss;
 
 #ifdef CONFIG_SHMEM
@@ -850,6 +910,9 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
 #endif
 	/* mmap_sem is held in m_start */
 	walk_page_vma(vma, &smaps_walk);
+#ifdef CONFIG_KSU_SUSFS_SUS_MAP
+susfs_skip_walk:
+#endif
 
 	if (!rollup_mode) {
 		show_map_vma(m, vma, is_pid);
