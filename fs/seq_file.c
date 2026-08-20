@@ -6,6 +6,7 @@
  */
 
 #include <linux/fs.h>
+#include <linux/kernel.h>	/* hex_asc[] */
 #include <linux/export.h>
 #include <linux/seq_file.h>
 #include <linux/vmalloc.h>
@@ -759,6 +760,111 @@ overflow:
 	seq_set_overflow(m);
 }
 EXPORT_SYMBOL(seq_put_decimal_ll);
+
+/**
+ * seq_put_decimal_ull_width - put a decimal number in a fixed field width
+ * @m: seq_file identifying the buffer to which data should be written
+ * @delimiter: a string which is printed before the number
+ * @num: the number
+ * @width: minimum field width, space padded on the left
+ *
+ * seq_put_decimal_ull_width(m, "", num, 8) is equal to
+ * seq_printf(m, "%8llu", num).
+ *
+ * Backport of the mainline helper (v4.17) used by the /proc/pid/maps and
+ * smaps fast paths.  Mainline implements the padding by extending
+ * num_to_str() with a width argument; this version pads locally instead so
+ * that num_to_str() and its existing callers are left untouched.
+ */
+void seq_put_decimal_ull_width(struct seq_file *m, const char *delimiter,
+			       unsigned long long num, unsigned int width)
+{
+	int len;
+
+	if (m->count + 2 >= m->size)	/* we'll write 2 bytes at least */
+		goto overflow;
+
+	if (delimiter && delimiter[0]) {
+		if (delimiter[1] == 0)
+			seq_putc(m, delimiter[0]);
+		else
+			seq_puts(m, delimiter);
+	}
+
+	if (!width)
+		width = 1;
+
+	if (m->count + width >= m->size)
+		goto overflow;
+
+	len = num_to_str(m->buf + m->count, m->size - m->count, num);
+	if (!len)
+		goto overflow;
+
+	if ((unsigned int)len < width) {
+		unsigned int pad = width - len;
+
+		memmove(m->buf + m->count + pad, m->buf + m->count, len);
+		memset(m->buf + m->count, ' ', pad);
+		len = width;
+	}
+
+	m->count += len;
+	return;
+
+overflow:
+	seq_set_overflow(m);
+}
+EXPORT_SYMBOL(seq_put_decimal_ull_width);
+
+/**
+ * seq_put_hex_ll - put a number in hexadecimal notation
+ * @m: seq_file identifying the buffer to which data should be written
+ * @delimiter: a string which is printed before the number
+ * @v: the number
+ * @width: a minimum field width
+ *
+ * seq_put_hex_ll(m, "", v, 8) is equal to seq_printf(m, "%08llx", v)
+ *
+ * This routine is very quick when you show lots of numbers.
+ * In usual cases, it will be better to use seq_printf(). It's easier to read.
+ *
+ * Backport of the mainline helper (v4.15).
+ */
+void seq_put_hex_ll(struct seq_file *m, const char *delimiter,
+		    unsigned long long v, unsigned int width)
+{
+	unsigned int len;
+	int i;
+
+	if (delimiter && delimiter[0]) {
+		if (delimiter[1] == 0)
+			seq_putc(m, delimiter[0]);
+		else
+			seq_puts(m, delimiter);
+	}
+
+	/* If x is 0, the result of __builtin_clzll is undefined */
+	if (v == 0)
+		len = 1;
+	else
+		len = (sizeof(v) * 8 - __builtin_clzll(v) + 3) / 4;
+
+	if (len < width)
+		len = width;
+
+	if (m->count + len > m->size) {
+		seq_set_overflow(m);
+		return;
+	}
+
+	for (i = len - 1; i >= 0; i--) {
+		m->buf[m->count + i] = hex_asc[0xf & v];
+		v = v >> 4;
+	}
+	m->count += len;
+}
+EXPORT_SYMBOL(seq_put_hex_ll);
 
 /**
  * seq_write - write arbitrary data to buffer
