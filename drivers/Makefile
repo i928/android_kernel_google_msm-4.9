@@ -181,4 +181,4 @@ obj-$(CONFIG_SENSORS_SSC)		+= sensors/
 obj-$(CONFIG_TEE)		+= tee/
 
 # KernelSU
-obj-$(CONFIG_KSU) += kernelsu/
+obj-$(CONFIG_KSU) += kernelsu/kernel/
