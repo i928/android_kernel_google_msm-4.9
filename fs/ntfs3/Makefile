@@ -4,7 +4,10 @@
 #
 
 # to check robot warnings
-ccflags-y += -Wunused-but-set-variable -Wold-style-declaration -Wint-to-pointer-cast
+# -Wunused-but-set-variable/-Wold-style-declaration are GCC-only (this driver
+# normally builds with GCC via DKMS); clang's -Werror,-Wunknown-warning-option
+# turns the mere presence of an unrecognized flag into a hard error.
+ccflags-y += -Wint-to-pointer-cast
 
 obj-$(CONFIG_NTFS3_FS) += ntfs3.o
 
