@@ -24,6 +24,7 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <asm/unaligned.h>
+#include "../compat.h"
 
 
 /* "Force inline" macro (not required, but helpful for performance)  */
