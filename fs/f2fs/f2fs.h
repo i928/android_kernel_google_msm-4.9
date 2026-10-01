@@ -3018,11 +3018,24 @@ static inline bool f2fs_may_extent_tree(struct inode *inode)
 
 static inline void *kvmalloc(size_t size, gfp_t flags)
 {
+	unsigned int noio;
 	void *ret;
 
 	ret = kmalloc(size, flags | __GFP_NOWARN);
-	if (!ret)
-		ret = __vmalloc(size, flags, PAGE_KERNEL);
+	if (ret || (flags & GFP_KERNEL) == GFP_KERNEL ||
+			!(flags & __GFP_DIRECT_RECLAIM))
+		return ret ? ret : __vmalloc(size, flags, PAGE_KERNEL);
+
+	/*
+	 * GFP_NOFS caller (e.g. the order-6 zstd decompression workspace):
+	 * __vmalloc() allocates its page tables with GFP_KERNEL whatever flags
+	 * it is given, which could recurse into fs reclaim. 4.9 has no
+	 * memalloc_nofs_save(); the NOIO scope clears __GFP_FS as well (and
+	 * __GFP_IO) for every allocation in this task, page tables included.
+	 */
+	noio = memalloc_noio_save();
+	ret = __vmalloc(size, flags | GFP_KERNEL, PAGE_KERNEL);
+	memalloc_noio_restore(noio);
 	return ret;
 }
 
