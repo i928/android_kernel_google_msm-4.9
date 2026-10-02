@@ -6,8 +6,12 @@
 # Same keystore identity as the manually-installed build on other devices;
 # see ~/ksu-manager-build/README.md. Computed via:
 # apksigner verify --print-certs + manual v2 signing-block cert extraction.
-KSU_NEXT_MANAGER_SIZE := 0x2ea
-KSU_NEXT_MANAGER_HASH := b22ee43b209e087273ecd9fc2d2b21f0cf58df0f37ded0694d3132ef8dcc6fb4
+# Key rotated 2026-10-02: the previous key (cert 0x2ea, b22ee43b...) had its
+# private key published on GitHub (device lmi repo, security/ksu_manager/), so
+# any app signed with it could be crowned manager. New keystore:
+# ~/ksu-manager-build/keystore/ksu-manager-2026-10.jks; the .pk8 stays local.
+KSU_NEXT_MANAGER_SIZE := 0x2f3
+KSU_NEXT_MANAGER_HASH := e77745f99a7cc40536d9ceb3fe050463065bbe4eb4f45f8f34691564a6b51459
 
 # NO second trusted cert. There used to be one here (size 0x39e, hash
 # e0951ae17bedc0763b81f55c141b5aa0ed3157e30db4be62589182b39b772f42) for the
