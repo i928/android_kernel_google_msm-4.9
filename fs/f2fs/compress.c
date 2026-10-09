@@ -1331,10 +1331,10 @@ unlock_continue:
 	else
 		f2fs_unlock_op(sbi);
 
-	down_write(&fi->i_sem);
+	spin_lock(&fi->i_size_lock);
 	if (fi->last_disk_size < psize)
 		fi->last_disk_size = psize;
-	up_write(&fi->i_sem);
+	spin_unlock(&fi->i_size_lock);
 
 	f2fs_put_rpages(cc);
 	page_array_free(cc->inode, cc->cpages, cc->nr_cpages);
