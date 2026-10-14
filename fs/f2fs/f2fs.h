@@ -3017,7 +3017,11 @@ static inline bool f2fs_may_extent_tree(struct inode *inode)
 	return S_ISREG(inode->i_mode);
 }
 
-static inline void *kvmalloc(size_t size, gfp_t flags)
+/*
+ * Not mm's kvmalloc(): that WARNs on (and does not support) GFP_NOFS, which
+ * f2fs passes.
+ */
+static inline void *f2fs_kvmalloc_flags(size_t size, gfp_t flags)
 {
 	unsigned int noio;
 	void *ret;
@@ -3054,17 +3058,7 @@ static inline void *f2fs_kmalloc(struct f2fs_sb_info *sbi,
 	if (ret)
 		return ret;
 
-	return kvmalloc(size, flags);
-}
-
-static inline void *kvzalloc(size_t size, gfp_t flags)
-{
-	void *ret;
-
-	ret = kzalloc(size, flags | __GFP_NOWARN);
-	if (!ret)
-		ret = __vmalloc(size, flags | __GFP_ZERO, PAGE_KERNEL);
-	return ret;
+	return f2fs_kvmalloc_flags(size, flags);
 }
 
 static inline int wbc_to_write_flags(struct writeback_control *wbc)
@@ -3091,7 +3085,7 @@ static inline void *f2fs_kvmalloc(struct f2fs_sb_info *sbi,
 		return NULL;
 	}
 
-	return kvmalloc(size, flags);
+	return f2fs_kvmalloc_flags(size, flags);
 }
 
 static inline void *f2fs_kvzalloc(struct f2fs_sb_info *sbi,
