@@ -11,6 +11,7 @@
 #include <linux/kexec.h>
 #include <linux/kmod.h>
 #include <linux/kmsg_dump.h>
+#include <linux/moduleparam.h>
 #include <linux/reboot.h>
 #include <linux/suspend.h>
 #include <linux/syscalls.h>
@@ -211,8 +212,19 @@ void migrate_to_reboot_cpu(void)
  *	Shutdown everything and perform a clean reboot.
  *	This is not safe to call in interrupt context.
  */
+/*
+ * Debug aid (TEMP, crosshatch A16 bring-up): with panic_on_bootloader_reboot=1 on
+ * the command line, a reboot into the bootloader panics instead. Pixel 3's
+ * bootloader encrypts ramoops on a clean reset and the next boot often fails to
+ * decrypt it; after a panic the log stays readable.
+ */
+static bool panic_on_bootloader_reboot;
+core_param(panic_on_bootloader_reboot, panic_on_bootloader_reboot, bool, 0644);
+
 void kernel_restart(char *cmd)
 {
+	if (panic_on_bootloader_reboot && cmd && !strncmp(cmd, "bootloader", 10))
+		panic("reboot requested: %s", cmd);
 	kernel_restart_prepare(cmd);
 	migrate_to_reboot_cpu();
 	syscore_shutdown();
