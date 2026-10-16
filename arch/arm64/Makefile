@@ -99,7 +99,7 @@ KBUILD_CFLAGS	+= -fno-pic
 # TEST (a16-cpuflags-*): tune code generation for the SDM845 Kryo 385 cores
 # (Cortex-A75-derived big, Cortex-A55-derived little). FP/SIMD stays off via
 # -mgeneral-regs-only; the effect is the scheduling model plus v8.2 integer ops.
-KBUILD_CFLAGS	+= $(call cc-option,-mcpu=cortex-a75)
+KBUILD_CFLAGS	+= $(call cc-option,-mcpu=cortex-a75+crypto)
 KBUILD_AFLAGS	+= $(lseinstr) $(vdso32)
 
 ifeq ($(CONFIG_SHADOW_CALL_STACK), y)
