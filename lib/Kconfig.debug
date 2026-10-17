@@ -569,6 +569,16 @@ config DEBUG_KMEMLEAK_EARLY_LOG_SIZE
 	  used to store these actions. If kmemleak reports "early log
 	  buffer exceeded", please increase this value.
 
+config DEBUG_KMEMLEAK_MEM_POOL_SIZE
+	int "Kmemleak memory pool size"
+	depends on DEBUG_KMEMLEAK
+	range 200 1000000
+	default 16000
+	help
+	  Number of kmemleak_object metadata entries kept in a static pool.
+	  When a slab allocation for the metadata fails, kmemleak takes an
+	  entry from this pool instead of disabling itself.
+
 config DEBUG_KMEMLEAK_TEST
 	tristate "Simple test for the kernel memory leak detector"
 	depends on DEBUG_KMEMLEAK && m

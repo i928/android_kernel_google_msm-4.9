@@ -456,6 +456,62 @@ static int get_object(struct kmemleak_object *object)
 }
 
 /*
+ * Emergency pool for kmemleak_object metadata (backport of the upstream 5.5
+ * memory pool, fallback part only). A failed slab allocation used to disable
+ * kmemleak for good; under boot memory pressure that happened within a minute.
+ */
+static struct kmemleak_object mem_pool[CONFIG_DEBUG_KMEMLEAK_MEM_POOL_SIZE];
+static int mem_pool_free_count = ARRAY_SIZE(mem_pool);
+static LIST_HEAD(mem_pool_free_list);
+static DEFINE_RAW_SPINLOCK(mem_pool_lock);
+
+static struct kmemleak_object *mem_pool_alloc(gfp_t gfp)
+{
+	unsigned long flags;
+	struct kmemleak_object *object;
+	bool warn = false;
+
+	/* try the slab allocator first */
+	object = kmem_cache_alloc(object_cache, gfp_kmemleak_mask(gfp));
+	if (object)
+		return object;
+
+	/* slab allocation failed, try the memory pool */
+	raw_spin_lock_irqsave(&mem_pool_lock, flags);
+	object = list_first_entry_or_null(&mem_pool_free_list,
+					  typeof(*object), object_list);
+	if (object)
+		list_del(&object->object_list);
+	else if (mem_pool_free_count)
+		object = &mem_pool[--mem_pool_free_count];
+	else
+		warn = true;
+	raw_spin_unlock_irqrestore(&mem_pool_lock, flags);
+	if (warn)
+		pr_warn_once("Memory pool empty, consider increasing CONFIG_DEBUG_KMEMLEAK_MEM_POOL_SIZE\n");
+
+	return object;
+}
+
+/*
+ * Return the object to either the slab allocator or the memory pool.
+ */
+static void mem_pool_free(struct kmemleak_object *object)
+{
+	unsigned long flags;
+
+	if (object < mem_pool || object >= mem_pool + ARRAY_SIZE(mem_pool)) {
+		kmem_cache_free(object_cache, object);
+		return;
+	}
+
+	/* add the object to the memory pool free list */
+	raw_spin_lock_irqsave(&mem_pool_lock, flags);
+	list_add(&object->object_list, &mem_pool_free_list);
+	raw_spin_unlock_irqrestore(&mem_pool_lock, flags);
+}
+
+/*
  * RCU callback to free a kmemleak_object.
  */
 static void free_object_rcu(struct rcu_head *rcu)
@@ -473,7 +529,7 @@ static void free_object_rcu(struct rcu_head *rcu)
 		hlist_del(&area->node);
 		kmem_cache_free(scan_area_cache, area);
 	}
-	kmem_cache_free(object_cache, object);
+	mem_pool_free(object);
 }
 
 /*
@@ -563,7 +619,7 @@ static struct kmemleak_object *create_object(unsigned long ptr, size_t size,
 	struct kmemleak_object *object, *parent;
 	struct rb_node **link, *rb_parent;
 
-	object = kmem_cache_alloc(object_cache, gfp_kmemleak_mask(gfp));
+	object = mem_pool_alloc(gfp);
 	if (!object) {
 		pr_warn("Cannot allocate a kmemleak_object structure\n");
 		kmemleak_disable();
@@ -626,7 +682,7 @@ static struct kmemleak_object *create_object(unsigned long ptr, size_t size,
 			 * be freed while the kmemleak_lock is held.
 			 */
 			dump_object_info(parent);
-			kmem_cache_free(object_cache, object);
+			mem_pool_free(object);
 			object = NULL;
 			goto out;
 		}
@@ -2126,7 +2182,8 @@ static int __init kmemleak_late_init(void)
 	start_scan_thread();
 	mutex_unlock(&scan_mutex);
 
-	pr_info("Kernel memory leak detector initialized\n");
+	pr_info("Kernel memory leak detector initialized (mem pool available: %d)\n",
+		mem_pool_free_count);
 
 	return 0;
 }
