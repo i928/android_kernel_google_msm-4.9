@@ -1852,5 +1852,6 @@ static inline int blkdev_issue_flush(struct block_device *bdev, gfp_t gfp_mask,
 }
 
 #endif /* CONFIG_BLOCK */
+int sync_blockdev_range(struct block_device *bdev, loff_t lstart, loff_t lend);
 
 #endif
