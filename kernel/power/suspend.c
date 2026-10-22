@@ -220,8 +220,15 @@ static void freeze_enter(void)
 	suspend_freeze_state = FREEZE_STATE_ENTER;
 	spin_unlock_irq(&suspend_freeze_lock);
 
+	/*
+	 * No cpuidle_resume()/cpuidle_pause() pair here: it only balanced the
+	 * cpuidle_pause()/cpuidle_resume() in dpm_suspend_noirq() and
+	 * dpm_resume_noirq(), which "cpuidle: don't disable cpuidle when
+	 * entering suspend" removed. Left alone, the trailing cpuidle_pause()
+	 * disabled cpuidle for good after the first suspend-to-idle, so every
+	 * CPU idled in plain WFI from then on.
+	 */
 	get_online_cpus();
-	cpuidle_resume();
 
 	/* Push all the CPUs into the idle loop. */
 	wake_up_all_idle_cpus();
@@ -231,7 +238,6 @@ static void freeze_enter(void)
 		   suspend_freeze_state == FREEZE_STATE_WAKE);
 	pr_debug("PM: resume from suspend-to-idle\n");
 
-	cpuidle_pause();
 	put_online_cpus();
 
 	spin_lock_irq(&suspend_freeze_lock);
