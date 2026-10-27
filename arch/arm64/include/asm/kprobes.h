@@ -49,7 +49,9 @@ struct kprobe_ctlblk {
 };
 
 void arch_remove_kprobe(struct kprobe *);
+#ifdef CONFIG_KPROBES	/* linux/kprobes.h has a !KPROBES stub; uprobes builds probes/ without KPROBES */
 int kprobe_fault_handler(struct pt_regs *regs, unsigned int fsr);
+#endif
 int kprobe_exceptions_notify(struct notifier_block *self,
 			     unsigned long val, void *data);
 int kprobe_breakpoint_handler(struct pt_regs *regs, unsigned int esr);
