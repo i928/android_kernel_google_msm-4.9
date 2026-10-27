@@ -1348,6 +1348,22 @@ union bpf_attr {
  * 	Return
  * 		The id is returned or 0 in case the id could not be retrieved.
  *
+ * long bpf_seq_printf(struct seq_file *m, const char *fmt, u32 fmt_size, const void *data, u32 data_len)
+ * 	Description
+ * 		Not implemented in this kernel; reserved to keep the upstream helper ids.
+ *
+ * long bpf_seq_write(struct seq_file *m, const void *data, u32 len)
+ * 	Description
+ * 		Not implemented in this kernel; reserved to keep the upstream helper ids.
+ *
+ * u64 bpf_sk_cgroup_id(void *sk)
+ * 	Description
+ * 		Not implemented in this kernel; reserved to keep the upstream helper ids.
+ *
+ * u64 bpf_sk_ancestor_cgroup_id(void *sk, int ancestor_level)
+ * 	Description
+ * 		Not implemented in this kernel; reserved to keep the upstream helper ids.
+ *
  * int bpf_ringbuf_output(void *ringbuf, void *data, u64 size, u64 flags)
  * 	Description
  * 		Copy *size* bytes from *data* into a ring buffer *ringbuf*.
@@ -1618,6 +1634,10 @@ union bpf_attr {
 	FN(get_current_ancestor_cgroup_id),	\
 	FN(sk_assign),			\
 	FN(ktime_get_boot_ns),		\
+	FN(seq_printf),			\
+	FN(seq_write),			\
+	FN(sk_cgroup_id),		\
+	FN(sk_ancestor_cgroup_id),	\
 	FN(ringbuf_output),		\
 	FN(ringbuf_reserve),		\
 	FN(ringbuf_submit),		\
