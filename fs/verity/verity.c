@@ -446,7 +446,7 @@ static int parse_footer(struct fsverity_info *vi,
 
 	/* magic */
 	if (memcmp(ftr->magic, FS_VERITY_MAGIC, sizeof(ftr->magic))) {
-		pr_warn("fs-verity footer not found\n");
+		pr_debug("fs-verity footer not found\n");
 		return -EINVAL;
 	}
 
@@ -728,7 +728,7 @@ static struct fsverity_info *create_fsverity_info(struct inode *inode)
 	}
 
 	if (last_validsize < sizeof(*ftr) + sizeof(__le32)) {
-		pr_warn("Unsupported alignment for fs-verity metadata -- not enough data in last page (only %u bytes)\n",
+		pr_debug("Unsupported alignment for fs-verity metadata -- not enough data in last page (only %u bytes)\n",
 			last_validsize);
 		return ERR_PTR(-EINVAL);
 	}
@@ -754,21 +754,21 @@ static struct fsverity_info *create_fsverity_info(struct inode *inode)
 						ftr_reverse_offset_loc);
 	pr_debug("ftr_reverse_offset=%u\n", ftr_reverse_offset);
 	if (ftr_reverse_offset < sizeof(*ftr) + sizeof(__le32)) {
-		pr_warn("Invalid fs-verity metadata (unexpected ftr_reverse_offset: %u)\n",
+		pr_debug("Invalid fs-verity metadata (unexpected ftr_reverse_offset: %u)\n",
 			ftr_reverse_offset);
 		err = -EINVAL;
 		goto out;
 	}
 
 	if (ftr_reverse_offset > last_validsize) {
-		pr_warn("Unimplemented case - fs-verity footer crosses pages (last_validsize=%u, ftr_reverse_offset=%u)",
+		pr_debug("Unimplemented case - fs-verity footer crosses pages (last_validsize=%u, ftr_reverse_offset=%u)",
 			last_validsize, ftr_reverse_offset);
 		err = -EINVAL;
 		goto out;
 	}
 	ftr_loc = last_validsize - ftr_reverse_offset;
 	if (ftr_loc & 7) {
-		pr_warn("fs-verity footer is misaligned. last_validsize=%u, ftr_reverse_offset=%u\n",
+		pr_debug("fs-verity footer is misaligned. last_validsize=%u, ftr_reverse_offset=%u\n",
 			last_validsize, ftr_reverse_offset);
 		err = -EINVAL;
 		goto out;
@@ -810,8 +810,25 @@ static int setup_fsverity_info(struct inode *inode)
 		return 0;
 
 	vi = create_fsverity_info(inode);
-	if (IS_ERR(vi))
+	if (IS_ERR(vi)) {
+		/*
+		 * The verity flag is set but the file does not carry the
+		 * metadata format this implementation understands.  That is
+		 * what a file looks like after a newer kernel enabled upstream
+		 * fs-verity on it: there the Merkle tree lives past EOF and
+		 * the descriptor in an xattr, so i_size is already the data
+		 * size and the data itself is readable as-is.  Refusing to
+		 * open it makes every such file (installed APKs, packages.xml)
+		 * unusable after a kernel downgrade.  Treat it as a regular,
+		 * unverified, still immutable file instead.
+		 */
+		if (PTR_ERR(vi) == -EINVAL) {
+			pr_info_ratelimited("ino %lu: unrecognized fs-verity metadata, opening without verification\n",
+					    inode->i_ino);
+			return 0;
+		}
 		return PTR_ERR(vi);
+	}
 
 	if (!set_fsverity_info(inode, vi))
 		free_fsverity_info(vi);
@@ -1090,11 +1107,12 @@ bool fsverity_verify_page(struct page *data_page)
 	int err;
 
 	/*
-	 * It shouldn't be possible to get here without ->i_verity_info set,
-	 * since it's set on ->open().
+	 * No ->i_verity_info: the file has the verity flag but metadata in a
+	 * format we do not understand (see setup_fsverity_info()).  It was
+	 * opened as an unverified regular file, so let the read through.
 	 */
-	if (WARN_ON_ONCE(!vi))
-		return false;
+	if (!vi)
+		return true;
 
 	/* The page must not be unlocked until verification has completed. */
 	if (WARN_ON_ONCE(!PageLocked(data_page)))
